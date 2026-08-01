@@ -1,6 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .permissions import IsHRRole, IsCandidateRole
+from rest_framework import viewsets
+from .permissions import IsHRRole, IsCandidateRole, IsAdminOrReadOnly
+from .models import Company
+from .serializers import CompanySerializer
 
 class HRTestView(APIView):
     permission_classes = [IsHRRole]
@@ -13,3 +16,8 @@ class CandidateTestView(APIView):
 
     def get(self, request):
         return Response({"message": "Hello Candidate! Access granted."})
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [IsAdminOrReadOnly]

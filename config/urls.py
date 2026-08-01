@@ -1,8 +1,7 @@
 from django.contrib import admin
-from django.urls import path
-from core.views import HRTestView
+from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/hr-test/', HRTestView.as_view(), name='hr-test'),
+    path('api/', include('core.urls')),
 ]
