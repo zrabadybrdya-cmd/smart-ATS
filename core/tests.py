@@ -13,3 +13,4 @@ class RBACTestCase(APITestCase):
         self.client.force_authenticate(user=self.candidate_user)
         response = self.client.get('/api/hr-test/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        
