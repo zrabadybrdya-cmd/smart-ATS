@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, JobPost
+from .models import JobPost, Company, User
 
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,7 +9,7 @@ class CompanySerializer(serializers.ModelSerializer):
 class JobPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobPost
-        fields = ['id', 'title', 'description', 'skills', 'status', 'company']
+        fields = ['id', 'title', 'description', 'skills', 'status', 'company', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def validate_title(self, value):
@@ -21,3 +21,11 @@ class JobPostSerializer(serializers.ModelSerializer):
         if not value.strip():
             raise serializers.ValidationError("وارد کردن مهارت‌های مورد نیاز الزامی است.")
         return value
+
+class CandidateProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone']
