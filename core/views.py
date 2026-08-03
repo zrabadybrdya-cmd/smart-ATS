@@ -1,10 +1,11 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from .models import JobPost, Company
-from .serializers import JobPostSerializer
-from .permissions import IsHRForCompanyJob, IsAdminRole, IsHRRole, IsCandidateRole
+from .serializers import JobPostSerializer, CandidateProfileSerializer
+from .permissions import IsHRForCompanyJob, IsAdminRole, IsHRRole, IsCandidateRole, IsOwner
 
 class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()
@@ -30,6 +31,17 @@ class JobPostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(company=self.request.user.company)
+
+@extend_schema(
+    summary="مدیریت پروفایل کارجو",
+    description="مشاهده (GET) و ویرایش جزئیات پروفایل (PATCH/PUT) برای کاربر واردشده."
+)
+class CandidateProfileView(generics.RetrieveUpdateAPIView):
+    serializer_class = CandidateProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def get_object(self):
+        return self.request.user
 
 class HRTestView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsHRRole]
