@@ -1,6 +1,9 @@
 import os
 from rest_framework import serializers
 from .models import Company, JobPost, Resume, User
+from rest_framework import serializers
+from .models import Company, JobPost, Resume, User, Application
+
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -52,3 +55,34 @@ class ResumeUploadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("فرمت‌های مجاز برای رزومه تنها شامل PDF و Word (.pdf, .doc, .docx) می‌باشند.")
 
         return value
+
+
+class ApplicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Application
+        fields = ['id', 'job_post', 'user', 'resume', 'status', 'created_at']
+        read_only_fields = ['id', 'user', 'status', 'created_at']
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        job_post = attrs.get('job_post')
+        resume = attrs.get('resume')
+
+        if resume and user and resume.user != user:
+            raise serializers.ValidationError({
+                "resume": "شما فقط می‌توانید رزومه‌های متعلق به خودتان را ارسال کنید."
+            })
+
+        if job_post and job_post.status != 'published':
+            raise serializers.ValidationError({
+                "job_post": "این آگهی شغلی در حال حاضر برای دریافت درخواست استخدام فعال نیست."
+            })
+        
+        if user and Application.objects.filter(user=user, job_post=job_post).exists():
+            raise serializers.ValidationError(
+                "شما قبلاً برای این آگهی شغلی درخواست ارسال کرده‌اید."
+            )
+
+        return attrs

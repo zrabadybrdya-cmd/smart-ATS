@@ -46,3 +46,43 @@ class Resume(models.Model):
 
     def __str__(self):
         return f"Resume of {self.user.username} - {self.id}"
+
+
+class Application(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('reviewed', 'Reviewed'),
+        ('interview', 'Interview'),
+        ('rejected', 'Rejected'),
+        ('hired', 'Hired'),
+    ]
+
+    job_post = models.ForeignKey(
+        'JobPost', 
+        on_delete=models.CASCADE, 
+        related_name='applications'
+    )
+    user = models.ForeignKey(
+        'User', 
+        on_delete=models.CASCADE, 
+        related_name='applications'
+    )
+    resume = models.ForeignKey(
+        'Resume', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='applications'
+    )
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='pending'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('job_post', 'user')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.job_post.title} ({self.status})"

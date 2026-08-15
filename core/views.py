@@ -4,6 +4,10 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status, viewsets, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
+from .models import Application
+from .serializers import ApplicationSerializer
+
 
 from .models import Company, JobPost, Resume
 from .permissions import (
@@ -97,3 +101,27 @@ class CandidateTestView(APIView):
 
     def get(self, request):
         return Response({"message": "Welcome Candidate!"})
+
+
+class ApplicationViewSet(viewsets.ModelViewSet):
+    queryset = Application.objects.all()
+    serializer_class = ApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if getattr(user, 'role', None) == 'candidate':
+            return Application.objects.filter(user=user)
+        return super().get_queryset()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        job_post = serializer.validated_data.get('job_post')
+        if Application.objects.filter(user=user, job_post=job_post).exists():
+            raise ValidationError({
+                "detail": "شما قبلاً برای این آگهی شغلی درخواست استخدام ثبت کرده‌اید."
+            })
+        
+        serializer.save(user=user)
+
+
