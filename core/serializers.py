@@ -66,7 +66,6 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         request = self.context.get('request')
         user = request.user if request else None
-        
         job_post = attrs.get('job_post')
         resume = attrs.get('resume')
 
@@ -79,7 +78,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "job_post": "این آگهی شغلی در حال حاضر برای دریافت درخواست استخدام فعال نیست."
             })
-        
+
         if user and Application.objects.filter(user=user, job_post=job_post).exists():
             raise serializers.ValidationError(
                 "شما قبلاً برای این آگهی شغلی درخواست ارسال کرده‌اید."
