@@ -1,11 +1,12 @@
 from django.http import HttpResponse
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from rest_framework import permissions, status, viewsets, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 
 from .models import Company, JobPost, Application, Resume, Candidate, ApplicationHistory
@@ -16,8 +17,16 @@ from .serializers import (
     ResumeUploadSerializer,
     ApplicationSerializer,
     ApplicationStatusUpdateSerializer,
+    KanbanApplicationSerializer,
 )
-from .permissions import IsHRForCompanyJob, IsHRRole, IsCandidateRole, IsAdminRole, IsOwner
+from .permissions import (
+    IsHRForCompanyJob,
+    IsHRRole,
+    IsCandidateRole,
+    IsAdminRole,
+    IsOwner,
+    IsHRForOwnCompany,
+)
 from .state_machine import ApplicationStateMachine
 
 
@@ -67,7 +76,7 @@ class JobPostViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        company = getattr(user, 'company', None)
+        company = getattr(user, 'company', None) or Company.objects.filter(owner=user).first()
         if not company:
             raise permissions.exceptions.PermissionDenied("کاربر متصل به هیچ شرکتی نیست.")
         serializer.save(company=company)
@@ -125,8 +134,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if hasattr(user, 'role') and user.role == 'hr' and hasattr(user, 'company'):
-            return Application.objects.filter(job_post__company=user.company)
+        if hasattr(user, 'role') and user.role == 'hr':
+            user_companies = Company.objects.filter(owner=user)
+            return Application.objects.filter(job_post__company__in=user_companies)
         elif hasattr(user, 'candidate'):
             return Application.objects.filter(candidate=user.candidate)
         return Application.objects.none()
@@ -162,12 +172,9 @@ class ApplicationStatusUpdateView(APIView):
         if serializer.is_valid():
             new_status = serializer.validated_data['status']
             note = serializer.validated_data.get('note', '')
-            
             current_status = application.status
-            
             machine = ApplicationStateMachine()
             
-            # بررسی صحت انتقال وضعیت با در نظر گرفتن هر دو شیوه پیاده‌سازی متداول متد
             is_allowed = False
             if hasattr(machine, 'can_transition_to'):
                 try:
@@ -197,7 +204,7 @@ class ApplicationStatusUpdateView(APIView):
                         changed_by=request.user,
                         note=note
                     )
-            except Exception as e:
+            except Exception:
                 return Response(
                     {"error": "خطایی در پردازش اطلاعات رخ داد."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -214,3 +221,52 @@ class ApplicationStatusUpdateView(APIView):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class KanbanBoardView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsHRForOwnCompany]
+
+    @extend_schema(
+        summary="واکشی بهینه درخواست‌ها برای بورد کانبان",
+        description="واکشی کلیه درخواست‌ها با رفع مشکل N+1 و دسته‌بندی ستونی برای Kanban Board.",
+        parameters=[
+            OpenApiParameter(name='job_id', type=int, required=False, description='شناسه آگهی شغلی جهت فیلتر'),
+        ],
+        tags=["Kanban Board"]
+    )
+    def get(self, request):
+        user = request.user
+        job_id = request.query_params.get('job_id')
+
+        queryset = Application.objects.select_related(
+            'candidate__user',
+            'job_post__company',
+            'resume'
+        )
+
+        if not (getattr(user, 'is_superuser', False) or getattr(user, 'role', None) == 'admin'):
+            user_companies = Company.objects.filter(owner=user)
+            if user_companies.exists():
+                queryset = queryset.filter(job_post__company__in=user_companies)
+
+        if job_id:
+            queryset = queryset.filter(job_post_id=job_id)
+
+        columns = {
+            'pending': [],
+            'reviewed': [],
+            'interview': [],
+            'rejected': [],
+            'hired': []
+        }
+
+        serializer = KanbanApplicationSerializer(queryset, many=True)
+        for app in serializer.data:
+            app_status = app.get('status')
+            if app_status in columns:
+                columns[app_status].append(app)
+
+        return Response({
+            "total_applications": len(serializer.data),
+            "columns": columns
+        }, status=status.HTTP_200_OK)

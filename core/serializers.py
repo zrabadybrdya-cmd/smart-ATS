@@ -1,6 +1,6 @@
 import os
 from rest_framework import serializers
-from .models import Company, JobPost, Resume, User, Application, ApplicationStatus
+from .models import Company, JobPost, Resume, User, Application, ApplicationStatus, Candidate
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -57,8 +57,8 @@ class ResumeUploadSerializer(serializers.ModelSerializer):
 class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
-        fields = ['id', 'job_post', 'user', 'resume', 'status', 'created_at']
-        read_only_fields = ['id', 'user', 'status', 'created_at']
+        fields = ['id', 'job_post', 'candidate', 'resume', 'status', 'created_at']
+        read_only_fields = ['id', 'candidate', 'status', 'created_at']
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -76,7 +76,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
                 "job_post": "این آگهی شغلی در حال حاضر برای دریافت درخواست استخدام فعال نیست."
             })
 
-        if user and Application.objects.filter(user=user, job_post=job_post).exists():
+        if user and hasattr(user, 'candidate') and Application.objects.filter(candidate=user.candidate, job_post=job_post).exists():
             raise serializers.ValidationError(
                 "شما قبلاً برای این آگهی شغلی درخواست ارسال کرده‌اید."
             )
@@ -86,7 +86,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 class ApplicationStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
-        choices=ApplicationStatus.choices,
+        choices=ApplicationStatus.choices if hasattr(ApplicationStatus, 'choices') else [
+            ('pending', 'Pending'),
+            ('reviewed', 'Reviewed'),
+            ('interview', 'Interview'),
+            ('rejected', 'Rejected'),
+            ('hired', 'Hired'),
+        ],
         required=True,
         error_messages={
             'required': 'وارد کردن وضعیت جدید الزامی است.',
@@ -98,3 +104,36 @@ class ApplicationStatusUpdateSerializer(serializers.Serializer):
         allow_blank=True,
         allow_null=True
     )
+
+class CandidateLiteSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.EmailField(source='user.email', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = Candidate
+        fields = ['id', 'username', 'full_name', 'email', 'phone']
+
+    def get_full_name(self, obj):
+        if obj.user:
+            name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+            return name if name else obj.user.username
+        return ""
+
+
+class KanbanJobPostLiteSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+
+    class Meta:
+        model = JobPost
+        fields = ['id', 'title', 'company_name']
+
+
+class KanbanApplicationSerializer(serializers.ModelSerializer):
+    candidate = CandidateLiteSerializer(read_only=True)
+    job_post = KanbanJobPostLiteSerializer(read_only=True)
+    resume_url = serializers.FileField(source='resume.file', read_only=True)
+
+    class Meta:
+        model = Application
+        fields = ['id', 'job_post', 'candidate', 'resume_url', 'status', 'created_at']

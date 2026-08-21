@@ -11,6 +11,7 @@ from .views import (
     ResumeUploadView,
     ApplicationViewSet,
     ApplicationStatusUpdateView,
+    KanbanBoardView,
 )
 
 router = DefaultRouter()
@@ -27,4 +28,5 @@ urlpatterns = [
     path('test-hr/', HRTestView.as_view(), name='test-hr'),
     path('test-candidate/', CandidateTestView.as_view(), name='test-candidate'),
     path('applications/<int:pk>/status/', ApplicationStatusUpdateView.as_view(), name='application-status-update'),
+    path('kanban/board/', KanbanBoardView.as_view(), name='kanban-board'),
 ]
