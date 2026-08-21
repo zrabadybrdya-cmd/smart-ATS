@@ -1,20 +1,24 @@
 from django.http import HttpResponse
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
 
-# ایمپورت مدل‌های موجود در پروژه شما (بدون وابستگی اضافه)
-from .models import Company, JobPost, Application, Resume, Candidate
+from .models import Company, JobPost, Application, Resume, Candidate, ApplicationHistory
 from .serializers import (
     CompanySerializer,
     JobPostSerializer,
     CandidateProfileSerializer,
     ResumeUploadSerializer,
     ApplicationSerializer,
+    ApplicationStatusUpdateSerializer,
 )
 from .permissions import IsHRForCompanyJob, IsHRRole, IsCandidateRole, IsAdminRole, IsOwner
+from .state_machine import ApplicationStateMachine
 
 
 def home_view(request):
@@ -146,3 +150,67 @@ class CandidateTestView(APIView):
     @extend_schema(summary="تست دسترسی نقش Candidate", tags=["RBAC Tests"])
     def get(self, request):
         return Response({"message": "دسترسی Candidate تایید شد."})
+
+
+class ApplicationStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        application = get_object_or_404(Application, pk=pk)
+        
+        serializer = ApplicationStatusUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            new_status = serializer.validated_data['status']
+            note = serializer.validated_data.get('note', '')
+            
+            current_status = application.status
+            
+            machine = ApplicationStateMachine()
+            
+            # بررسی صحت انتقال وضعیت با در نظر گرفتن هر دو شیوه پیاده‌سازی متداول متد
+            is_allowed = False
+            if hasattr(machine, 'can_transition_to'):
+                try:
+                    is_allowed = machine.can_transition_to(current_status, new_status)
+                except TypeError:
+                    machine.current_state = current_status
+                    is_allowed = machine.can_transition_to(new_status)
+            elif hasattr(machine, 'is_valid_transition'):
+                is_allowed = machine.is_valid_transition(current_status, new_status)
+            else:
+                is_allowed = True
+            
+            if not is_allowed:
+                return Response(
+                    {"error": f"امکان تغییر وضعیت از '{current_status}' به '{new_status}' وجود ندارد."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+            try:
+                with transaction.atomic():
+                    application.status = new_status
+                    application.save()
+                    
+                    ApplicationHistory.objects.create(
+                        application=application,
+                        status=new_status,
+                        changed_by=request.user,
+                        note=note
+                    )
+            except Exception as e:
+                return Response(
+                    {"error": "خطایی در پردازش اطلاعات رخ داد."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            return Response(
+                {
+                    "message": "وضعیت درخواست با موفقیت به‌روزرسانی شد.",
+                    "application_id": application.id,
+                    "new_status": new_status,
+                    "note": note
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

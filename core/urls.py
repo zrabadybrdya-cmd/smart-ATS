@@ -10,6 +10,7 @@ from .views import (
     JobPostViewSet,
     ResumeUploadView,
     ApplicationViewSet,
+    ApplicationStatusUpdateView,
 )
 
 router = DefaultRouter()
@@ -25,4 +26,5 @@ urlpatterns = [
     path('resume/upload/', ResumeUploadView.as_view(), name='resume-upload'),
     path('test-hr/', HRTestView.as_view(), name='test-hr'),
     path('test-candidate/', CandidateTestView.as_view(), name='test-candidate'),
+    path('applications/<int:pk>/status/', ApplicationStatusUpdateView.as_view(), name='application-status-update'),
 ]

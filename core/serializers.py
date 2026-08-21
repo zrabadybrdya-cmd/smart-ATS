@@ -1,9 +1,6 @@
 import os
 from rest_framework import serializers
-from .models import Company, JobPost, Resume, User
-from rest_framework import serializers
-from .models import Company, JobPost, Resume, User, Application
-
+from .models import Company, JobPost, Resume, User, Application, ApplicationStatus
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -85,3 +82,19 @@ class ApplicationSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class ApplicationStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=ApplicationStatus.choices,
+        required=True,
+        error_messages={
+            'required': 'وارد کردن وضعیت جدید الزامی است.',
+            'invalid_choice': 'وضعیت انتخاب شده معتبر نمی‌باشد.'
+        }
+    )
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True
+    )
