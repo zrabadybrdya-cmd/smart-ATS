@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>دعوت به مصاحبه - Smart ATS</title>
+    <style>
+        body { font-family: Tahoma, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; direction: rtl; text-align: right; }
+        .container { max-width: 600px; margin: 30px auto; background: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header { background-color: #007bff; color: #ffffff; padding: 15px; text-align: center; border-radius: 6px 6px 0 0; font-size: 20px; font-weight: bold; }
+        .content { padding: 20px; color: #333333; line-height: 1.6; }
+        .btn { display: inline-block; padding: 10px 20px; margin-top: 20px; background-color: #28a745; color: #ffffff; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #777777; border-top: 1px solid #eeeeee; padding-top: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">دعوت به مصاحبه شغلی</div>
+        <div class="content">
+            <p>کاربر گرامی، <strong>{{ candidate_name }}</strong></p>
+            <p>رزومه شما برای موقعیت شغلی <strong>{{ job_title }}</strong> بررسی و تایید شد. مایلیم جلسة مصاحبه‌ای با شما داشته باشیم.</p>
+            <p><strong>تاریخ و زمان مصاحبه:</strong> {{ interview_date }}</p>
+            <p>لطفاً در زمان مقرر آماده حضور در جلسه باشید.</p>
+            <a href="{{ meeting_link }}" class="btn">ورود به جلسه مصاحبه</a>
+        </div>
+        <div class="footer">تیم استخدام پلتفرم Smart ATS</div>
+    </div>
+</body>
+</html>

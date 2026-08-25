@@ -7,16 +7,6 @@ from core.state_machine import ApplicationStateMachine
 
 User = get_user_model()
 
-# class RBACTestCase(APITestCase):
-#     def setUp(self):
-#         self.hr_user = User.objects.create_user(username='hr_user', email='hr@example.com', password='password123', role='hr')
-#         self.candidate_user = User.objects.create_user(username='candidate_user', email='candidate@example.com', password='password123', role='candidate')
-
-#     def test_candidate_cannot_access_hr_view(self):
-#         self.client.force_authenticate(user=self.candidate_user)
-#         response = self.client.get('/api/hr-test/')
-#         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
 class DummyApplication:
     def __init__(self, status):
         self.status = status
