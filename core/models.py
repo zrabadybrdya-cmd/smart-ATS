@@ -3,6 +3,15 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
+try:
+    from pgvector.django import VectorField, HnswIndex
+except ImportError:
+    class VectorField(models.JSONField):
+        def __init__(self, *args, dimensions=None, **kwargs):
+            self.dimensions = dimensions
+            super().__init__(*args, **kwargs)
+    HnswIndex = None
+
 
 class ApplicationStatus(models.TextChoices):
     PENDING = 'pending', _('در انتظار بررسی')
@@ -49,8 +58,20 @@ class JobPost(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     skills = models.TextField()
+    skills_embedding = VectorField(dimensions=1536, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            HnswIndex(
+                name='jobpost_skills_hnsw_idx',
+                fields=['skills_embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            )
+        ] if HnswIndex else []
 
     def __str__(self):
         return self.title
@@ -60,7 +81,19 @@ class Resume(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='resumes', verbose_name="کارجو")
     file = models.FileField(upload_to='resumes/', verbose_name="فایل رزومه")
     parsed_skills = models.TextField(blank=True, null=True, verbose_name="مهارت‌های استخراج‌شده")
+    skills_embedding = VectorField(dimensions=1536, null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ آپلود")
+
+    class Meta:
+        indexes = [
+            HnswIndex(
+                name='resume_skills_hnsw_idx',
+                fields=['skills_embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            )
+        ] if HnswIndex else []
 
     def __str__(self):
         return f"Resume of {self.user.username} - {self.id}"
@@ -112,13 +145,11 @@ class ApplicationHistory(models.Model):
         related_name='history',
         verbose_name='درخواست استخدام'
     )
-    
     status = models.CharField(
-        max_length=20,
-        choices=ApplicationStatus.choices,
+        max_length=20, 
+        choices=ApplicationStatus.choices, 
         verbose_name='وضعیت جدید'
     )
-    
     changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -127,13 +158,11 @@ class ApplicationHistory(models.Model):
         related_name='status_changes_made',
         verbose_name='تغییر داده شده توسط'
     )
-    
     note = models.TextField(
         blank=True, 
         null=True, 
         verbose_name='يادداشت / توضیحات'
     )
-    
     created_at = models.DateTimeField(
         auto_now_add=True, 
         verbose_name='تاریخ و زمان تغییر'
